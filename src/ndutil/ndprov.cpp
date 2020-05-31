@@ -181,6 +181,10 @@ namespace NetworkDirect
     {
     }
 
+    NdV1Provider::~NdV1Provider()
+    {
+        // empty (as Provider base class descructor is virtual, that descructor will get called)
+    }
 
     //
     // Serialization with TryUnload must be provided by the caller.  Multiple
@@ -274,6 +278,10 @@ namespace NetworkDirect
     {
     }
 
+    NdProvider::~NdProvider()
+    {
+        // empty (as Provider base class descructor is virtual, that descructor will get called)
+    }
 
     //
     // Serialization with TryUnload must be provided by the caller.  Multiple
