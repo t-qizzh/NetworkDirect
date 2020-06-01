@@ -2,7 +2,7 @@
 // Copyright(c) Microsoft Corporation.All rights reserved.
 // Licensed under the MIT License.
 //
-// rmapi.cpp - Simplifying abstraction of an RDMA interface
+// rmapi.cpp - Simplified RDMA interface
 //
 // This API is split into a server and a client part, which can be compiled as exe or dynamic library.
 // The server side allocates a buffer, advertises it, and gives access permission to the client.
@@ -12,13 +12,10 @@
 #include "rmapi.h"
 #include "helpers.h"
 
-const bool bBlocking = false;
-const LPCWSTR LOGFILE = L"rmapi.exe";
+const bool bBlocking = true;
 
 int __cdecl _tmain(int argc, TCHAR* argv[])
 {
-    INIT_LOG(LOGFILE);
-
     WSADATA wsaData;
     int ret = ::WSAStartup(MAKEWORD(2, 2), &wsaData);
     if (ret != 0)
@@ -37,7 +34,7 @@ int __cdecl _tmain(int argc, TCHAR* argv[])
 
     if (conf.bServer)
     {
-        NdrPingServer server(conf.bOpRead);
+        NdrPingServer server;
         server.RunTest(conf.v4Server, 0, conf.nSge);
     }
     else
@@ -53,6 +50,17 @@ int __cdecl _tmain(int argc, TCHAR* argv[])
 
         NdrPingClient client(bBlocking, conf.bOpRead);
         client.RunTest(v4Src, conf.v4Server, 0, conf.nSge);
+        /*client.StartSession(v4Src, conf.v4Server, 0, conf.nSge);
+        for (int i = 0; i < 100; i++) {
+            client.BatchRead();
+        }
+        client.CheckReadStatus();
+        for (int i = 0; i < 100; i++) {
+            client.BatchWrite();
+        }
+        client.CheckWriteStatus();
+        client.EndSession(); // terminates server
+        */
     }
 
     hr = NdCleanup();
@@ -61,7 +69,6 @@ int __cdecl _tmain(int argc, TCHAR* argv[])
         LOG_FAILURE_HRESULT_AND_EXIT(hr, L"NdCleanup failed with %08x", __LINE__);
     }
 
-    END_LOG(LOGFILE);
     _fcloseall();
     WSACleanup();
     return 0;

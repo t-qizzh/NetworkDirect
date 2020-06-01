@@ -22,11 +22,11 @@ void ShowUsage()
 struct Config {
     bool bServer = false;
     bool bClient = false;
-    struct sockaddr_in v4Server = { 0 };
-    DWORD nSge = 1;
+    struct sockaddr_in v4Server = { 0 }; // ip4 address
+    DWORD nSge = 1; // entries per transfer
     bool bOpRead = false;
     bool bOpWrite = false;
-    SIZE_T nPipeline = 128;
+    SIZE_T nPipeline = 128; // queue/pipeline size
 };
 
 Config parseArgs(int argc, TCHAR* argv[]) {
