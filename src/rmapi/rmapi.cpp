@@ -34,7 +34,7 @@ int __cdecl _tmain(int argc, TCHAR* argv[])
 
     if (conf.bServer)
     {
-        NdrPingServer server;
+        RTestServer server;
         server.RunTest(conf.v4Server, 0, conf.nSge);
     }
     else
@@ -48,19 +48,11 @@ int __cdecl _tmain(int argc, TCHAR* argv[])
             LOG_FAILURE_HRESULT_AND_EXIT(hr, L"NdResolveAddress failed with %08x", __LINE__);
         }
 
-        NdrPingClient client(bBlocking, conf.bOpRead);
-        client.RunTest(v4Src, conf.v4Server, 0, conf.nSge);
-        /*client.StartSession(v4Src, conf.v4Server, 0, conf.nSge);
-        for (int i = 0; i < 100; i++) {
-            client.BatchRead();
-        }
-        client.CheckReadStatus();
-        for (int i = 0; i < 100; i++) {
-            client.BatchWrite();
-        }
-        client.CheckWriteStatus();
-        client.EndSession(); // terminates server
-        */
+        Client cl(bBlocking);
+        cl.RunTest(v4Src, conf.v4Server, 0, conf.nSge); // sets up a session
+        cl.SimpleTest(false);
+        cl.SimpleTest(true);
+        cl.EndSession();
     }
 
     hr = NdCleanup();

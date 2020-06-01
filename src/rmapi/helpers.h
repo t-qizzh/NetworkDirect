@@ -8,8 +8,6 @@ void ShowUsage()
         "Options:\n"
         "\t-s            - Start as server (listen on IP/Port)\n"
         "\t-c            - Start as client (connect to server IP/Port)\n"
-        "\t-w            - Use RMA Write (client only, default)\n"
-        "\t-r            - Use RMA Read (client only)\n"
         "\t-n <nSge>     - Number of scatter/gather entries per transfer (default: 1)\n"
         "\t-q <pipeline> - Pipeline limit of <pipeline> requests\n"
         "\t-l <logFile>  - Log output to a file named <logFile>\n"
@@ -24,8 +22,6 @@ struct Config {
     bool bClient = false;
     struct sockaddr_in v4Server = { 0 }; // ip4 address
     DWORD nSge = 1; // entries per transfer
-    bool bOpRead = false;
-    bool bOpWrite = false;
     SIZE_T nPipeline = 128; // queue/pipeline size
 };
 
@@ -43,14 +39,6 @@ Config parseArgs(int argc, TCHAR* argv[]) {
         else if ((wcscmp(arg, L"-c") == 0) || (wcscmp(arg, L"-C") == 0))
         {
             conf.bClient = true;
-        }
-        else if ((wcscmp(arg, L"-r") == 0) || (wcscmp(arg, L"--read") == 0))
-        {
-            conf.bOpRead = true;
-        }
-        else if ((wcscmp(arg, L"-w") == 0) || (wcscmp(arg, L"--write") == 0))
-        {
-            conf.bOpRead = true;
         }
         else if ((wcscmp(arg, L"-n") == 0) || (wcscmp(arg, L"-N") == 0))
         {
@@ -91,18 +79,6 @@ Config parseArgs(int argc, TCHAR* argv[]) {
         printf("Exactly one of client (c) or server (s) must be specified.\n");
         ShowUsage();
         exit(-1);
-    }
-
-    if (conf.bOpRead && conf.bOpWrite)
-    {
-        printf("Exactly one of read (r) or write (w) op must be specified\n\n");
-        ShowUsage();
-        exit(-1);
-    }
-
-    if (conf.bOpRead == false && conf.bOpWrite == false)
-    {
-        conf.bOpWrite = true;
     }
 
     if (conf.v4Server.sin_addr.s_addr == 0)
