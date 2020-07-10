@@ -10,6 +10,8 @@
 #include "ndprov.h"
 #include "ndfrmwrk.h"
 
+#include <stdio.h>
+
 
 namespace NetworkDirect
 {
@@ -397,11 +399,13 @@ namespace NetworkDirect
     {
         ASSERT(pAddress);
         ASSERT(ppIAdapter);
+        printf("QZ: opening adapter.\nQZ: validating address.\n");
         HRESULT hr = ValidateAddress(pAddress, cbAddress);
         if (FAILED(hr))
         {
             return hr;
         }
+        printf("QZ: passed validating address.\n");
 
         //
         // Sync our provider and address lists
@@ -412,12 +416,17 @@ namespace NetworkDirect
         const List<Address>* pList;
         if (InlineIsEqualGUID(iid, IID_INDAdapter))
         {
+            printf("QZ: using NdV1AddrList.\n");
             pList = &m_NdV1AddrList;
         }
         else
         {
+            printf("QZ: using NdAddrList.\n");
             pList = &m_NdAddrList;
         }
+        
+        if (pList->begin() == pList->end())
+            printf("QZ: pList is empty.\n");
 
         //
         // Find the provider for the given address.
@@ -427,8 +436,10 @@ namespace NetworkDirect
             pAddr != pList->end();
             ++pAddr)
         {
+            printf("QZ: checking the provider..\n");
             if (!pAddr->Matches(pAddress))
             {
+                printf("QZ: not matched, continue.\n");
                 continue;
             }
 
@@ -441,10 +452,19 @@ namespace NetworkDirect
             );
             if (FAILED(hr))
             {
+                // char str[INET_ADDRSTRLEN];
+                // inet_ntop(AF_INET, &(pAddress->sa_data), str, INET_ADDRSTRLEN);
+                printf("QZ: failed hr, continue.\n");
                 continue;   // In case another provider handles the same address.
             }
 
             break;
+        }
+        if (hr == ND_INVALID_ADDRESS || hr < 0) {
+            printf("QZ: failed to open adapter with hr = %ld.\n", hr);
+        }
+        else {
+            printf("QZ: open adapter succeeded!\n");
         }
         return hr;
     }

@@ -9,6 +9,9 @@
 // The client performs RDMA reads and writes on this buffer with no further involvement of the server.
 //
 
+#include <time.h>
+#include <chrono>
+
 #include "rmapi.h"
 #include "helpers.h"
 
@@ -50,8 +53,21 @@ int __cdecl _tmain(int argc, TCHAR* argv[])
 
         Client cl(bBlocking);
         cl.RunTest(v4Src, conf.v4Server, 0, conf.nSge); // sets up a session
-        cl.SimpleTest(false);
-        cl.SimpleTest(true);
+        // cl.SimpleTest(false);
+        // cl.SimpleTest(true);
+        
+        // QZ: start the clock
+        std::chrono::steady_clock::time_point begin = std::chrono::steady_clock::now();
+        cl.SimpleWriteTest();
+        std::chrono::steady_clock::time_point end = std::chrono::steady_clock::now();
+        // time(&t_end);
+        printf("Write XX GB data in %lf seonds.\n", (std::chrono::duration_cast<std::chrono::microseconds>(end - begin).count() / 1000000.0));
+
+        begin = std::chrono::steady_clock::now();
+        cl.SimpleReadTest();
+        end = std::chrono::steady_clock::now();
+        // time(&t_end);
+        printf("Transfer XX GB data in %lf seonds.\n", (std::chrono::duration_cast<std::chrono::microseconds>(end - begin).count() / 1000000.0));
         cl.EndSession();
     }
 
@@ -61,7 +77,7 @@ int __cdecl _tmain(int argc, TCHAR* argv[])
         LOG_FAILURE_HRESULT_AND_EXIT(hr, L"NdCleanup failed with %08x", __LINE__);
     }
 
-    _fcloseall();
-    WSACleanup();
+    _fcloseall(); // Close FDs?
+    WSACleanup(); // Close the socket
     return 0;
 }

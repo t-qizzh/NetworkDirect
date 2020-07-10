@@ -41,23 +41,24 @@ public:
         }
 
         m_maxIncomingReads = adapterInfo.MaxInboundReadLimit;
-        NdTestBase::CreateCQ(adapterInfo.MaxCompletionQueueDepth);
-        NdTestBase::CreateConnector();
-        NdTestBase::CreateQueuePair(min(adapterInfo.MaxCompletionQueueDepth, adapterInfo.MaxReceiveQueueDepth), 1);
+        NdTestBase::CreateCQ(adapterInfo.MaxCompletionQueueDepth); // Create completion queue
+        NdTestBase::CreateConnector(); // Create the connector?
+        NdTestBase::CreateQueuePair(min(adapterInfo.MaxCompletionQueueDepth, adapterInfo.MaxReceiveQueueDepth), 1); // Create queue pair
 
-        NdTestBase::CreateMR();
+        NdTestBase::CreateMR(); // Create memory region
         m_pBuf = static_cast<char*>(HeapAlloc(GetProcessHeap(), 0, x_MaxTransfer + x_HdrLen));
+        // QZ: so the registered memory region is only 4M+40 bytes?
         if (!m_pBuf)
         {
             LOG_FAILURE_AND_EXIT(L"Failed to allocate data buffer.", __LINE__);
         }
 
         ULONG flags = ND_MR_FLAG_ALLOW_LOCAL_WRITE | ND_MR_FLAG_ALLOW_REMOTE_READ | ND_MR_FLAG_ALLOW_REMOTE_WRITE;
-        NdTestBase::RegisterDataBuffer(m_pBuf, x_MaxTransfer + x_HdrLen, flags);
+        NdTestBase::RegisterDataBuffer(m_pBuf, x_MaxTransfer + x_HdrLen, flags); // QZ: the buffer is registered to memory region.
         printf("Registered DataBuffer\n");
 
         // post reveive for the terminate message
-        ND2_SGE sge = { 0 };
+        ND2_SGE sge = { 0 }; // QZ: what's SGE? Scatter-Gather Element
         sge.Buffer = m_pBuf;
         sge.BufferLength = x_MaxTransfer + x_HdrLen;
         sge.MemoryRegionToken = m_pMr->GetLocalToken();
@@ -69,14 +70,14 @@ public:
         printf("Listening\n");
         NdTestServerBase::GetConnectionRequest();
         NdTestServerBase::Accept(adapterInfo.MaxInboundReadLimit, 0);
-        NdTestBase::CreateMW();
+        NdTestBase::CreateMW(); // Create memory window
         printf("Memory Window created\n");
         NdTestBase::Bind(m_pBuf, x_MaxTransfer + x_HdrLen, ND_OP_FLAG_ALLOW_READ | ND_OP_FLAG_ALLOW_WRITE);
         printf("Found client\n");
 
         // send remote token and address
         PeerInfo* pInfo = static_cast<PeerInfo*> (m_pBuf);
-        pInfo->m_remoteToken = m_pMw->GetRemoteToken();
+        pInfo->m_remoteToken = m_pMw->GetRemoteToken(); // QZ: m_pMw -- memory window
         pInfo->m_nIncomingReadLimit = m_maxIncomingReads;
         pInfo->m_remoteAddress = reinterpret_cast<UINT64>(m_pBuf);
         NdTestBase::Send(&sge, 1, 0, SEND_CTXT);
@@ -148,6 +149,31 @@ public:
         return numIssued;
     }
 
+    DWORD ReadUntilQueue(ULONG& iters, DWORD nSge, DWORD flags)
+    {
+        DWORD numIssued = 0;
+        while (m_availCredits > 0 && iters > 0)
+        {
+            NdTestBase::Read(m_Sgl, nSge, m_remoteAddress + iters, m_remoteToken, flags, READ_CTXT);
+            
+            m_availCredits--; iters--;
+            numIssued++;
+        }
+        return numIssued;
+    }
+
+    DWORD WriteUntilQueue(ULONG& iters, DWORD nSge, DWORD flags)
+    {
+        DWORD numIssued = 0;
+        while (m_availCredits > 0 && iters > 0)
+        {
+            NdTestBase::Write(m_Sgl, nSge, m_remoteAddress + iters, m_remoteToken, flags, WRITE_CTXT);
+
+            m_availCredits--; iters--;
+            numIssued++;
+        }
+        return numIssued;
+    }
 
     void SimpleTest(bool bRead) {
         m_availCredits = m_queueDepth;
@@ -185,6 +211,82 @@ public:
             numIssued += GoUntilQueue(iterations, currSeg, bRead, writeFlags);
         } while ((numIssued != numCompleted || iterations != 0) && hr == ND_SUCCESS);
         printf(bRead ? "RDMA read %lu x\n" : "Finished write %lu x\n",numIssued);
+    }
+
+    void SimpleReadTest() {
+        m_availCredits = m_queueDepth;
+        ULONG size = 1024;
+        ULONG iterations = x_MaxIterations;
+        iterations = x_MaxVolume / size;
+        currSeg = NdTestBase::PrepareSge(m_Sgl, m_nMaxSge, m_pBuf, size, x_HdrLen, m_pMr->GetLocalToken());
+
+        HRESULT hr = ND_SUCCESS;
+        DWORD numIssued = 0, numCompleted = 0;
+        DWORD writeFlags = 0;
+        numIssued = ReadUntilQueue(iterations, currSeg, writeFlags);
+        do
+        {
+            ND2_RESULT ndRes;
+            WaitForCompletion(&ndRes, m_bUseBlocking);
+            hr = ndRes.Status;
+            switch (hr)
+            {
+            case ND_SUCCESS:
+                if (ndRes.RequestContext != READ_CTXT)
+                {
+                    LOG_FAILURE_AND_EXIT(L"Invalid completion context\n", __LINE__);
+                }
+                numCompleted++; m_availCredits++;
+                break;
+
+            case ND_CANCELED:
+                break;
+
+            default:
+                LOG_FAILURE_HRESULT_AND_EXIT(
+                    hr, L"INDCompletionQueue::GetResults returned result with %08x.", __LINE__);
+            }
+            numIssued += ReadUntilQueue(iterations, currSeg, writeFlags);
+        } while ((numIssued != numCompleted || iterations != 0) && hr == ND_SUCCESS);
+        printf("RDMA read %lu x\n", numIssued);
+    }
+
+    void SimpleWriteTest() {
+        m_availCredits = m_queueDepth;
+        ULONG size = 1024;
+        ULONG iterations = x_MaxIterations;
+        iterations = x_MaxVolume / size;
+        currSeg = NdTestBase::PrepareSge(m_Sgl, m_nMaxSge, m_pBuf, size, x_HdrLen, m_pMr->GetLocalToken());
+
+        HRESULT hr = ND_SUCCESS;
+        DWORD numIssued = 0, numCompleted = 0;
+        DWORD writeFlags = (size < m_inlineThreshold) ? ND_OP_FLAG_INLINE : 0;
+        numIssued = WriteUntilQueue(iterations, currSeg, writeFlags);
+        do
+        {
+            ND2_RESULT ndRes;
+            WaitForCompletion(&ndRes, m_bUseBlocking);
+            hr = ndRes.Status;
+            switch (hr)
+            {
+            case ND_SUCCESS:
+                if (ndRes.RequestContext != WRITE_CTXT)
+                {
+                    LOG_FAILURE_AND_EXIT(L"Invalid completion context\n", __LINE__);
+                }
+                numCompleted++; m_availCredits++;
+                break;
+
+            case ND_CANCELED:
+                break;
+
+            default:
+                LOG_FAILURE_HRESULT_AND_EXIT(
+                    hr, L"INDCompletionQueue::GetResults returned result with %08x.", __LINE__);
+            }
+            numIssued += WriteUntilQueue(iterations, currSeg, writeFlags);
+        } while ((numIssued != numCompleted || iterations != 0) && hr == ND_SUCCESS);
+        printf("RDMA write %lu x\n", numIssued);
     }
 
     void RunTest(const struct sockaddr_in& v4Src, const struct sockaddr_in& v4Dst, DWORD queueDepth, DWORD nSge)

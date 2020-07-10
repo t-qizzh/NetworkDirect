@@ -246,7 +246,7 @@ void NdTestBase::Init(_In_ const struct sockaddr_in& v4Src)
     );
     if (FAILED(hr))
     {
-        LogErrorExit("Failed open adapter.\n", __LINE__);
+        LogErrorExit("Failed open adapter :%08x.\n", __LINE__);
     }
 
     m_Ov.hEvent = CreateEvent(nullptr, FALSE, FALSE, nullptr);
@@ -270,6 +270,7 @@ void NdTestBase::GetAdapterInfo(ND2_ADAPTER_INFO *pAdapterInfo)
     pAdapterInfo->InfoVersion = ND_VERSION_2;
     ULONG adapterInfoSize = sizeof(*pAdapterInfo);
     HRESULT hr = m_pAdapter->Query(pAdapterInfo, &adapterInfoSize);
+    printf("QZ: querying adapter info.\n");
     if (FAILED(hr))
     {
         LogErrorExit(hr, "IND2Adapter::GetAdapterInfo failed", __LINE__);
